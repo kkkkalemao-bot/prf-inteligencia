@@ -19,7 +19,7 @@ st.info(
 
 @st.cache_data
 def load_sample():
-    return pd.read_csv("data/questoes_exemplo.csv", dtype=str).fillna("")
+    return pd.read_csv("data/prf_inteligencia_base_2014_60_questoes.csv", dtype=str).fillna("")
 
 def normalize(df):
     df = df.copy()
