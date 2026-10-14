@@ -82,18 +82,56 @@ c2.metric("Questões válidas", n_valid)
 c3.metric("Assuntos identificados", int(n_subjects))
 c4.metric("Fontes registradas", int(n_sources))
 
+
 st.subheader("Ranking de assuntos")
+
 if n_valid == 0:
-    st.warning("Não há questões válidas nos filtros atuais. Importe dados verificados ou ajuste os filtros.")
+    st.warning(
+        "Ainda não há questões válidas nos filtros atuais. "
+        "Abaixo, mostramos a situação da classificação temática."
+    )
+
+    pendentes = filtered[
+        filtered["assunto"].str.lower().isin([
+            "classificação temática pendente",
+            ""
+        ])
+    ]
+
+    identificados = filtered[
+        ~filtered["assunto"].str.lower().isin([
+            "classificação temática pendente",
+            ""
+        ])
+    ]
+
+    c1, c2 = st.columns(2)
+    c1.metric("Assuntos pendentes", len(pendentes))
+    c2.metric("Registros com assunto identificado", len(identificados))
+
+    if not pendentes.empty:
+        st.info(
+            "Os assuntos destas questões precisam ser classificados "
+            "antes de gerar um ranking de incidência."
+        )
 else:
     counts = (
-        valid.assign(assunto=valid["assunto"].replace("", "(Assunto não informado)"))
+        valid.assign(
+            assunto=valid["assunto"].replace(
+                ["", "Classificação temática pendente"],
+                "(Assunto pendente)"
+            )
+        )
         .groupby("assunto", dropna=False)
         .size()
         .reset_index(name="questoes")
         .sort_values("questoes", ascending=False)
     )
-    counts["percentual_%"] = (counts["questoes"] / counts["questoes"].sum() * 100).round(1)
+
+    counts["percentual_%"] = (
+        counts["questoes"] / counts["questoes"].sum() * 100
+    ).round(1)
+
     left, right = st.columns([3, 2])
     with left:
         st.bar_chart(counts.set_index("assunto")["questoes"])
@@ -102,10 +140,22 @@ else:
 
     st.subheader("Recorrência por prova/ano")
     recurring = valid.copy()
-    recurring["assunto"] = recurring["assunto"].replace("", "(Assunto não informado)")
-    recurring["prova_ano"] = recurring["banca"].replace("", "Banca não informada") + " — " + recurring["ano"].replace("", "Ano não informado")
-    recurrence = recurring.groupby("assunto")["prova_ano"].nunique().reset_index(name="provas_ou_combinacoes_ano")
-    recurrence = recurrence.sort_values("provas_ou_combinacoes_ano", ascending=False)
+    recurring["assunto"] = recurring["assunto"].replace(
+        ["", "Classificação temática pendente"],
+        "(Assunto pendente)"
+    )
+    recurring["prova_ano"] = (
+        recurring["banca"].replace("", "Banca não informada")
+        + " — "
+        + recurring["ano"].replace("", "Ano não informado")
+    )
+
+    recurrence = (
+        recurring.groupby("assunto")["prova_ano"]
+        .nunique()
+        .reset_index(name="provas_ou_combinacoes_ano")
+        .sort_values("provas_ou_combinacoes_ano", ascending=False)
+    )
     st.dataframe(recurrence, use_container_width=True, hide_index=True)
 
 st.subheader("Base de questões")
