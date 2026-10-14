@@ -1,0 +1,7 @@
+﻿id_questao,cargo,ano,banca,disciplina,assunto,subassunto,gabarito,status,fonte,validacao
+DEMO-001,Agente Administrativo,2014,Banca demonstrativa,Direito Administrativo,Atos administrativos,Atributos,A,válida,DEMONSTRAÇÃO — não é fonte real,pendente
+DEMO-002,Agente Administrativo,2014,Banca demonstrativa,Direito Administrativo,Atos administrativos,Anulação e revogação,C,válida,DEMONSTRAÇÃO — não é fonte real,pendente
+DEMO-003,Agente Administrativo,2014,Banca demonstrativa,Língua Portuguesa,Interpretação de texto,Ideia central,B,válida,DEMONSTRAÇÃO — não é fonte real,pendente
+DEMO-004,Agente Administrativo,2014,Banca demonstrativa,Direito Constitucional,Direitos fundamentais,Direitos individuais,D,válida,DEMONSTRAÇÃO — não é fonte real,pendente
+DEMO-005,Agente Administrativo,2014,Banca demonstrativa,Direito Administrativo,Atos administrativos,Atributos,B,anulada,DEMONSTRAÇÃO — não é fonte real,pendente
+DEMO-006,Agente Administrativo,2014,Banca demonstrativa,Informática,Segurança da informação,Malware,E,válida,DEMONSTRAÇÃO — não é fonte real,pendente
