@@ -68,8 +68,13 @@ else:
 valid = filtered[filtered["status"].str.lower().isin(["válida", "valida"])].copy()
 n_total = len(filtered)
 n_valid = len(valid)
-n_subjects = valid["assunto"].replace("", pd.NA).dropna().nunique()
-n_sources = valid["fonte"].replace("", pd.NA).dropna().nunique()
+
+subjects = filtered["assunto"].replace("", pd.NA).dropna()
+subjects = subjects[subjects.str.lower() != "classificação temática pendente"]
+n_subjects = subjects.nunique()
+
+sources = filtered["fonte"].replace("", pd.NA).dropna()
+n_sources = sources.nunique()
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Registros filtrados", n_total)
