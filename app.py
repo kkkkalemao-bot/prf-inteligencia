@@ -1,191 +1,98 @@
 import io
+from pathlib import Path
+
 import pandas as pd
 import streamlit as st
 
 st.set_page_config(page_title="PRF INTELIGÊNCIA", page_icon="🧠", layout="wide")
 
-REQUIRED_COLUMNS = [
+BASE_COLUMNS = [
     "id_questao", "cargo", "ano", "banca", "disciplina", "assunto",
     "subassunto", "gabarito", "status", "fonte", "validacao"
 ]
+AUDIT_COLUMNS = [
+    "status_gabarito", "status_classificacao", "status_enunciado",
+    "pode_contar_no_ranking", "prioridade_revisao", "fonte_gabarito"
+]
+ALL_COLUMNS = BASE_COLUMNS + [
+    "enunciado", "alternativas", "resumo_tema", "confianca_gabarito",
+    "observacoes"
+] + AUDIT_COLUMNS
 
 st.title("🧠 PRF INTELIGÊNCIA")
-st.caption("MVP de análise de questões — Agente Administrativo da PRF")
-st.info(
-    "Importante: os dados demonstrativos são fictícios. Não use os exemplos como "
-    "estatísticas reais de provas. As conclusões só serão confiáveis quando a base "
-    "for preenchida com questões verificadas e fontes identificadas."
-)
+st.caption("Painel de análise de questões — PRF Agente Administrativo")
 
-@st.cache_data
-def load_sample():
-    return pd.read_csv("data/prf_inteligencia_base_2014_60_questoes.csv", dtype=str).fillna("")
+st.warning(
+    "Base em fase de auditoria. A classificação temática é provisória e os "
+    "gabaritos ainda precisam ser conferidos em fonte oficial. Os registros "
+    "provisórios NÃO entram no ranking de incidência confirmada."
+)
 
 def normalize(df):
     df = df.copy()
-    for col in REQUIRED_COLUMNS:
+    for col in ALL_COLUMNS:
         if col not in df.columns:
             df[col] = ""
-    return df[REQUIRED_COLUMNS].fillna("").astype(str)
+    return df[ALL_COLUMNS].fillna("").astype(str)
+
+@st.cache_data
+def load_csv(path, modified_time):
+    return pd.read_csv(path, dtype=str).fillna("")
+
+def find_default_csv():
+    candidates = [
+        Path("data/prf_inteligencia_base_v03_auditoria.csv"),
+        Path("prf_inteligencia_base_v03_auditoria.csv"),
+        Path("data/prf_inteligencia_base_2014_60_questoes_classificacao_provisoria.csv"),
+        Path("data/prf_inteligencia_base_2014_60_questoes_organizada.csv"),
+        Path("data/prf_inteligencia_base_2014_60_questoes.csv"),
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    return None
 
 uploaded = st.sidebar.file_uploader("Importar banco de questões (CSV)", type=["csv"])
-if uploaded:
+default_path = find_default_csv()
+
+if uploaded is not None:
     try:
         imported = pd.read_csv(uploaded, dtype=str).fillna("")
         data = normalize(imported)
-        st.sidebar.success(f"{len(data)} registros importados para esta sessão.")
-        st.sidebar.caption("A importação não substitui nem salva automaticamente a base original.")
-    except Exception as e:
-        st.sidebar.error(f"Não foi possível ler o CSV: {e}")
-        data = normalize(load_sample())
+        st.sidebar.success(f"{len(data)} registros importados nesta sessão.")
+        st.sidebar.caption("A importação não altera o arquivo no GitHub.")
+    except Exception as exc:
+        st.sidebar.error(f"Não foi possível ler o CSV: {exc}")
+        data = pd.DataFrame(columns=ALL_COLUMNS)
+elif default_path is not None:
+    try:
+        data = normalize(load_csv(str(default_path), default_path.stat().st_mtime))
+        st.sidebar.success(f"Base carregada: {default_path.name}")
+    except Exception as exc:
+        st.error(f"Erro ao carregar a base: {exc}")
+        st.stop()
 else:
-    data = normalize(load_sample())
-    st.sidebar.caption("Usando dados fictícios de demonstração.")
+    st.error(
+        "Não encontrei um CSV de questões. Coloque a base v0.3 em "
+        "`data/prf_inteligencia_base_v03_auditoria.csv` ou importe um CSV na barra lateral."
+    )
+    st.stop()
+
+# Auditoria explícita: só registros marcados como liberados podem alimentar ranking confirmado.
+ranking_flag = data["pode_contar_no_ranking"].str.strip().str.lower()
+gabarito_status = data["status_gabarito"].str.strip().str.lower()
+class_status = data["status_classificacao"].str.strip().str.lower()
+ranking_released = ranking_flag.isin(["sim", "yes", "true", "1"])
+official_key = gabarito_status.str.contains("oficial|confirmado|verificado", regex=True)
+classification_confirmed = class_status.str.contains("confirmad|validada|validado", regex=True)
+data["_ranking_confirmado"] = ranking_released & official_key & classification_confirmed
 
 with st.sidebar:
     st.header("Filtros")
-    cargos = sorted([x for x in data["cargo"].unique() if x])
+    cargos = sorted(x for x in data["cargo"].unique() if x.strip())
     cargo_sel = st.selectbox("Cargo", ["Todos"] + cargos)
-    disciplinas = sorted([x for x in data["disciplina"].unique() if x])
+    disciplinas = sorted(x for x in data["disciplina"].unique() if x.strip())
     disciplina_sel = st.selectbox("Disciplina", ["Todas"] + disciplinas)
-    anos = sorted([x for x in data["ano"].unique() if x], reverse=True)
+    anos = sorted((x for x in data["ano"].unique() if x.strip()), reverse=True)
     ano_sel = st.selectbox("Ano", ["Todos"] + anos)
-    status_opts = sorted([x for x in data["status"].unique() if x])
-    status_sel = st.multiselect("Status da questão", status_opts, default=status_opts)
-
-filtered = data.copy()
-if cargo_sel != "Todos":
-    filtered = filtered[filtered["cargo"] == cargo_sel]
-if disciplina_sel != "Todas":
-    filtered = filtered[filtered["disciplina"] == disciplina_sel]
-if ano_sel != "Todos":
-    filtered = filtered[filtered["ano"] == ano_sel]
-if status_sel:
-    filtered = filtered[filtered["status"].isin(status_sel)]
-else:
-    filtered = filtered.iloc[0:0]
-
-valid = filtered[filtered["status"].str.lower().isin(["válida", "valida"])].copy()
-n_total = len(filtered)
-n_valid = len(valid)
-
-subjects = filtered["assunto"].replace("", pd.NA).dropna()
-subjects = subjects[subjects.str.lower() != "classificação temática pendente"]
-n_subjects = subjects.nunique()
-
-sources = filtered["fonte"].replace("", pd.NA).dropna()
-n_sources = sources.nunique()
-
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Registros filtrados", n_total)
-c2.metric("Questões válidas", n_valid)
-c3.metric("Assuntos identificados", int(n_subjects))
-c4.metric("Fontes registradas", int(n_sources))
-
-
-st.subheader("Ranking de assuntos")
-
-if n_valid == 0:
-    st.warning(
-        "Ainda não há questões válidas nos filtros atuais. "
-        "Abaixo, mostramos a situação da classificação temática."
-    )
-
-    pendentes = filtered[
-        filtered["assunto"].str.lower().isin([
-            "classificação temática pendente",
-            ""
-        ])
-    ]
-
-    identificados = filtered[
-        ~filtered["assunto"].str.lower().isin([
-            "classificação temática pendente",
-            ""
-        ])
-    ]
-
-    c1, c2 = st.columns(2)
-    c1.metric("Assuntos pendentes", len(pendentes))
-    c2.metric("Registros com assunto identificado", len(identificados))
-
-    if not pendentes.empty:
-        st.info(
-            "Os assuntos destas questões precisam ser classificados "
-            "antes de gerar um ranking de incidência."
-        )
-else:
-    counts = (
-        valid.assign(
-            assunto=valid["assunto"].replace(
-                ["", "Classificação temática pendente"],
-                "(Assunto pendente)"
-            )
-        )
-        .groupby("assunto", dropna=False)
-        .size()
-        .reset_index(name="questoes")
-        .sort_values("questoes", ascending=False)
-    )
-
-    counts["percentual_%"] = (
-        counts["questoes"] / counts["questoes"].sum() * 100
-    ).round(1)
-
-    left, right = st.columns([3, 2])
-    with left:
-        st.bar_chart(counts.set_index("assunto")["questoes"])
-    with right:
-        st.dataframe(counts, use_container_width=True, hide_index=True)
-
-    st.subheader("Recorrência por prova/ano")
-    recurring = valid.copy()
-    recurring["assunto"] = recurring["assunto"].replace(
-        ["", "Classificação temática pendente"],
-        "(Assunto pendente)"
-    )
-    recurring["prova_ano"] = (
-        recurring["banca"].replace("", "Banca não informada")
-        + " — "
-        + recurring["ano"].replace("", "Ano não informado")
-    )
-
-    recurrence = (
-        recurring.groupby("assunto")["prova_ano"]
-        .nunique()
-        .reset_index(name="provas_ou_combinacoes_ano")
-        .sort_values("provas_ou_combinacoes_ano", ascending=False)
-    )
-    st.dataframe(recurrence, use_container_width=True, hide_index=True)
-
-st.subheader("Base de questões")
-st.caption("Confere a fonte de cada questão antes de usar as estatísticas.")
-st.dataframe(filtered, use_container_width=True, hide_index=True)
-
-st.subheader("Registros que precisam de revisão")
-required_for_review = ["id_questao", "disciplina", "assunto", "ano", "fonte", "validacao"]
-if len(filtered):
-    review_mask = pd.Series(False, index=filtered.index)
-    for col in required_for_review:
-        review_mask |= filtered[col].astype(str).str.strip().eq("")
-    review_mask |= filtered["validacao"].str.lower().isin(["pendente", "revisar", "não revisada", "nao revisada"])
-    review = filtered[review_mask]
-    if len(review):
-        st.warning(f"{len(review)} registro(s) precisam de revisão.")
-        st.dataframe(review, use_container_width=True, hide_index=True)
-    else:
-        st.success("Nenhum registro incompleto ou pendente de revisão encontrado nos filtros atuais.")
-else:
-    st.write("Nenhum registro para revisar.")
-
-st.subheader("Baixar modelo para cadastrar questões")
-template = pd.DataFrame(columns=REQUIRED_COLUMNS)
-st.download_button(
-    "⬇️ Baixar modelo CSV",
-    data=template.to_csv(index=False).encode("utf-8-sig"),
-    file_name="modelo_questoes_prf.csv",
-    mime="text/csv"
-)
-
-st.divider()
-st.caption("MVP inicial. Ainda não faz leitura automática de PDFs nem classificação automática por IA.")
+    statuses = sorted(x for x in data["status"].unique() if x.strip())
