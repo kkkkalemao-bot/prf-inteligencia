@@ -48,9 +48,8 @@ candidates = [
     Path("data/prf_inteligencia_base_2014_60_questoes_classificacao_provisoria.csv"),
     Path("data/prf_inteligencia_base_2014_60_questoes_organizada.csv"),
     Path("data/prf_inteligencia_base_2014_60_questoes.csv"),
-
-
-    ]
+]
+    
     for path in candidates:
         if path.exists():
             return path
