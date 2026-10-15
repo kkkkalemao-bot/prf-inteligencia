@@ -41,13 +41,13 @@ def load_csv(path, modified_time):
 
 def find_default_csv():
     
-candidates = [
-    Path("data/prf_inteligencia_base_v03_corrigida_provisoria.csv"),
-    Path("data/prf_inteligencia_base_v03_auditoria.csv"),
-    Path("prf_inteligencia_base_v03_auditoria.csv"),
-    Path("data/prf_inteligencia_base_2014_60_questoes_classificacao_provisoria.csv"),
-    Path("data/prf_inteligencia_base_2014_60_questoes_organizada.csv"),
-    Path("data/prf_inteligencia_base_2014_60_questoes.csv"),
+    candidates = [
+        Path("data/prf_inteligencia_base_v03_corrigida_provisoria.csv"),
+        Path("data/prf_inteligencia_base_v03_auditoria.csv"),
+        Path("prf_inteligencia_base_v03_auditoria.csv"),
+        Path("data/prf_inteligencia_base_2014_60_questoes_classificacao_provisoria.csv"),
+        Path("data/prf_inteligencia_base_2014_60_questoes_organizada.csv"),
+        Path("data/prf_inteligencia_base_2014_60_questoes.csv"),
 ]
     
     for path in candidates:
